@@ -1,0 +1,123 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PY{g+gh}{diff \PYZhy{}\PYZhy{}git a/arch/x86/kvm/Kconfig b/arch/x86/kvm/Kconfig}
+\PY{g+gh}{index 413a7bf..81d217a 100644}
+\PY{g+gd}{\PYZhy{}\PYZhy{}\PYZhy{} a/arch/x86/kvm/Kconfig}
+\PY{g+gi}{+++ b/arch/x86/kvm/Kconfig}
+\PY{g+gu}{@@ \PYZhy{}95,6 +95,9 @@ config KVM\PYZus{}DEVICE\PYZus{}ASSIGNMENT}
+ 	  framework through VFIO, which supersedes much of this support.
+ 
+ 	  If unsure, say Y.
+\PY{g+gi}{+config KVM\PYZus{}VMCS}
+\PY{g+gi}{+	bool \PYZdq{}Enable VMCS sysfs\PYZdq{}}
+\PY{g+gi}{+	default y}
+ 
+ \PYZsh{} OK, it\PYZsq{}s a little counter\PYZhy{}intuitive to do this, but it puts it neatly under
+ \PYZsh{} the virtualization menu.
+\PY{g+gh}{diff \PYZhy{}\PYZhy{}git a/arch/x86/kvm/Makefile b/arch/x86/kvm/Makefile}
+\PY{g+gh}{index 16e8f96..5417381 100644}
+\PY{g+gd}{\PYZhy{}\PYZhy{}\PYZhy{} a/arch/x86/kvm/Makefile}
+\PY{g+gi}{+++ b/arch/x86/kvm/Makefile}
+\PY{g+gu}{@@ \PYZhy{}20,3 +20,4 @@ kvm\PYZhy{}amd\PYZhy{}y		+= svm.o}
+ obj\PYZhy{}\PYZdl{}(CONFIG\PYZus{}KVM)	+= kvm.o
+ obj\PYZhy{}\PYZdl{}(CONFIG\PYZus{}KVM\PYZus{}INTEL)	+= kvm\PYZhy{}intel.o
+ obj\PYZhy{}\PYZdl{}(CONFIG\PYZus{}KVM\PYZus{}AMD)	+= kvm\PYZhy{}amd.o
+\PY{g+gi}{+obj\PYZhy{}\PYZdl{}(CONFIG\PYZus{}KVM\PYZus{}VMCS)  += kvm\PYZhy{}vmcs.o}
+\PY{g+gh}{diff \PYZhy{}\PYZhy{}git a/arch/x86/kvm/kvm\PYZhy{}vmcs.c b/arch/x86/kvm/kvm\PYZhy{}vmcs.c}
+new file mode 100644
+\PY{g+gh}{index 0000000..a112420}
+\PY{g+gd}{\PYZhy{}\PYZhy{}\PYZhy{} /dev/null}
+\PY{g+gi}{+++ b/arch/x86/kvm/kvm\PYZhy{}vmcs.c}
+\PY{g+gu}{@@ \PYZhy{}0,0 +1,91 @@}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/device.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/init.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/kernel.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/module.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/stat.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/string.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}linux/sysfs.h\PYZgt{}}
+\PY{g+gi}{+\PYZsh{}include \PYZlt{}asm /vmx.h\PYZgt{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+MODULE LICENSE( \PYZdq{}GPL\PYZdq{});}
+\PY{g+gi}{+MODULE AUTHOR( \PYZdq{}Author\PYZdq{});}
+\PY{g+gi}{+}
+\PY{g+gi}{+struct kobject m\PYZus{}kobj;}
+\PY{g+gi}{+}
+\PY{g+gi}{+/*the operations for VT\PYZhy{}x extensions*/}
+\PY{g+gi}{+extern unsigned long vmcs\PYZus{}readl ( unsigned long field );}
+\PY{g+gi}{+extern void vmcs\PYZus{}writel ( unsigned long field , unsigned long value ) ;}
+\PY{g+gi}{+extern unsigned long get\PYZus{}field\PYZus{}addr( const char * field ) ;}
+\PY{g+gi}{+}
+\PY{g+gi}{+struct attribute m\PYZus{}attr1 = \PYZob{}}
+\PY{g+gi}{+	.name = \PYZdq{}VM\PYZus{}EXIT\PYZus{}MSR\PYZus{}STORE\PYZus{}COUNT\PYZdq{},	/*attribute\PYZsq{}s name*/}
+\PY{g+gi}{+	.mode = S\PYZus{}IRWXUGO,					/*permissions*/}
+\PY{g+gi}{+\PYZcb{};}
+\PY{g+gi}{+}
+\PY{g+gi}{+/*}
+\PY{g+gi}{+	Default attributes associated with the kobject}
+\PY{g+gi}{+	An array of attribute structures}
+\PY{g+gi}{+*/}
+\PY{g+gi}{+static struct attribute *m\PYZus{}attributes[] = \PYZob{}}
+\PY{g+gi}{+	\PYZam{}m\PYZus{}attr1,}
+\PY{g+gi}{+	NULL, 		//need to NULL terminate the list of attributes}
+\PY{g+gi}{+\PYZcb{};}
+\PY{g+gi}{+}
+\PY{g+gi}{+/* method invoked on read of a sysfs file */}
+\PY{g+gi}{+static ssize\PYZus{}t m\PYZus{}show( struct kobject *kobject, struct attribute *attrs , char *buffer)}
+\PY{g+gi}{+\PYZob{}	}
+\PY{g+gi}{+	ssize\PYZus{}t count;}
+\PY{g+gi}{+	unsigned long value;}
+\PY{g+gi}{+	value = vmcs\PYZus{}readl(0x0000400e);}
+\PY{g+gi}{+	count = sprintf(buffer, \PYZdq{}\PYZpc{}ld\PYZbs{}n\PYZdq{}, value);}
+\PY{g+gi}{+	return count;}
+\PY{g+gi}{+\PYZcb{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+/* method invoked on write of a sysfs file */}
+\PY{g+gi}{+static ssize\PYZus{}t m\PYZus{}store( struct kobject *kobject , struct attribute *attrs, const char *buffer, size\PYZus{}t size)}
+\PY{g+gi}{+\PYZob{}}
+\PY{g+gi}{+	unsigned long value;}
+\PY{g+gi}{+	value = simple\PYZus{}strtoul(buffer, NULL, 2);}
+\PY{g+gi}{+	vmcs\PYZus{}writel(0x0000400e, value);}
+\PY{g+gi}{+	return 0 ;}
+\PY{g+gi}{+\PYZcb{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+//behaviors of sysfs on read and write}
+\PY{g+gi}{+static struct sysfs\PYZus{}ops m\PYZus{}sysfs\PYZus{}ops = \PYZob{}}
+\PY{g+gi}{+	.show = m\PYZus{}show,}
+\PY{g+gi}{+	.store = m\PYZus{}store,}
+\PY{g+gi}{+\PYZcb{};}
+\PY{g+gi}{+}
+\PY{g+gi}{+//deconstructor}
+\PY{g+gi}{+static void vmcs\PYZus{}release(struct kobject * kobject)}
+\PY{g+gi}{+\PYZob{}}
+\PY{g+gi}{+	printk( \PYZdq{}[vmcs]release\PYZbs{}n\PYZdq{});}
+\PY{g+gi}{+\PYZcb{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+//the ktype }
+\PY{g+gi}{+static struct kobj\PYZus{}type m\PYZus{}ktype =}
+\PY{g+gi}{+\PYZob{}}
+\PY{g+gi}{+	.release = vmcs\PYZus{}release,}
+\PY{g+gi}{+	.sysfs\PYZus{}ops = \PYZam{}m\PYZus{}sysfs\PYZus{}ops,}
+\PY{g+gi}{+	.default\PYZus{}attrs = m\PYZus{}attributes,}
+\PY{g+gi}{+\PYZcb{};}
+\PY{g+gi}{+}
+\PY{g+gi}{+static int \PYZus{}\PYZus{}init vmcs\PYZus{}sysfs\PYZus{}module\PYZus{}init(void)}
+\PY{g+gi}{+\PYZob{}}
+\PY{g+gi}{+	printk (\PYZdq{}[vmcs]init\PYZbs{}n\PYZdq{});}
+\PY{g+gi}{+	}
+\PY{g+gi}{+	//map the m\PYZus{}kobj to the root directory}
+\PY{g+gi}{+	int res = kobject\PYZus{}init\PYZus{}and\PYZus{}add (\PYZam{}m\PYZus{}kobj , \PYZam{}m\PYZus{}ktype , NULL, \PYZdq{}vmcs\PYZdq{} );}
+\PY{g+gi}{+	return res;}
+\PY{g+gi}{+\PYZcb{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+static void \PYZus{}\PYZus{}exit vmcs\PYZus{}sysfs\PYZus{}module\PYZus{}exit ( void )}
+\PY{g+gi}{+\PYZob{}}
+\PY{g+gi}{+	printk(\PYZdq{}[vmcs]exit\PYZbs{}n\PYZdq{});}
+\PY{g+gi}{+	}
+\PY{g+gi}{+	//remove the sysfs representation of m\PYZus{}kobj}
+\PY{g+gi}{+	kobject\PYZus{}del(\PYZam{}m\PYZus{}kobj);}
+\PY{g+gi}{+\PYZcb{}}
+\PY{g+gi}{+}
+\PY{g+gi}{+module\PYZus{}init( vmcs\PYZus{}sysfs\PYZus{}module\PYZus{}init );}
+\PY{g+gi}{+module\PYZus{}exit( vmcs\PYZus{}sysfs\PYZus{}module\PYZus{}exit );}
+\PYZbs{} No newline at end of file
+\end{Verbatim}

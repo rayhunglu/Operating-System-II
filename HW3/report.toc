@@ -1,0 +1,22 @@
+\contentsline {section}{\numberline {I}Introduction}{2}{section.1}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {I-A}}VMM}{2}{subsection.1.1}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {I-B}}VMX}{2}{subsection.1.2}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {I-C}}VMCS}{2}{subsection.1.3}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {I-D}}VMCS Regions}{2}{subsection.1.4}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {I-E}}VMX Instructions}{2}{subsection.1.5}
+\contentsline {section}{\numberline {II}Setting Up }{3}{section.2}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {II-A}}Prepare the Minnowboard}{3}{subsection.2.1}
+\contentsline {subsubsection}{\numberline {\unhbox \voidb@x \hbox {II-A}1}Boot Minnowboard}{3}{subsubsection.2.1.1}
+\contentsline {subsubsection}{\numberline {\unhbox \voidb@x \hbox {II-A}2}Install CentOS 7.0}{3}{subsubsection.2.1.2}
+\contentsline {subsubsection}{\numberline {\unhbox \voidb@x \hbox {II-A}3}Connect Internet}{3}{subsubsection.2.1.3}
+\contentsline {subsubsection}{\numberline {\unhbox \voidb@x \hbox {II-A}4}Install Necessary Dependencies}{4}{subsubsection.2.1.4}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {II-B}}Get Kernel Source Codes}{4}{subsection.2.2}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {II-C}}Setting Up .config}{4}{subsection.2.3}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {II-D}}Build and Install the Kernel}{5}{subsection.2.4}
+\contentsline {section}{\numberline {III}Implementation of Sysfs}{5}{section.3}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {III-A}}Introduction of Related Data Structure}{5}{subsection.3.1}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {III-B}}Change the Kconfig}{6}{subsection.3.2}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {III-C}}Implementation of Module}{6}{subsection.3.3}
+\contentsline {subsection}{\numberline {\unhbox \voidb@x \hbox {III-D}}Change the Makefile}{7}{subsection.3.4}
+\contentsline {section}{\numberline {IV}Appendix: Kernel Patch}{7}{section.4}
+\contentsline {section}{References}{9}{section*.2}

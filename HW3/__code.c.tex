@@ -1,0 +1,29 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PY{k}{struct} \PY{n}{kobject} \PY{p}{\PYZob{}}
+	\PY{k}{const} \PY{k+kt}{char} \PY{o}{*}\PY{n}{name}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{list\PYZus{}head} \PY{n}{entry}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kobject} \PY{o}{*}\PY{n}{parent}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kset} \PY{o}{*}\PY{n}{kset}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kobj\PYZus{}type} \PY{o}{*}\PY{n}{ktype}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{sysfs\PYZus{}dirent} \PY{o}{*}\PY{n}{sd}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kref} \PY{n}{kref}\PY{p}{;}
+	\PY{k+kt}{unsigned} \PY{k+kt}{int} \PY{n+nl}{state\PYZus{}initialized}\PY{p}{:}\PY{l+m+mi}{1}\PY{p}{;}
+	\PY{k+kt}{unsigned} \PY{k+kt}{int} \PY{n+nl}{state\PYZus{}in\PYZus{}sysfs}\PY{p}{:}\PY{l+m+mi}{1}\PY{p}{;}
+	\PY{k+kt}{unsigned} \PY{k+kt}{int} \PY{n+nl}{state\PYZus{}add\PYZus{}uevent\PYZus{}sent}\PY{p}{:}\PY{l+m+mi}{1}\PY{p}{;}
+	\PY{k+kt}{unsigned} \PY{k+kt}{int} \PY{n+nl}{state\PYZus{}remove\PYZus{}uevent\PYZus{}sent}\PY{p}{:}\PY{l+m+mi}{1}\PY{p}{;}
+	\PY{k+kt}{unsigned} \PY{k+kt}{int} \PY{n+nl}{uevent\PYZus{}suppress}\PY{p}{:}\PY{l+m+mi}{1}\PY{p}{;}
+\PY{p}{\PYZcb{}}\PY{p}{;}
+
+\PY{k}{struct} \PY{n}{kobj\PYZus{}type} \PY{p}{\PYZob{}}
+	\PY{k+kt}{void} \PY{p}{(}\PY{o}{*}\PY{n}{release}\PY{p}{)}\PY{p}{(}\PY{k}{struct} \PY{n}{kobject} \PY{o}{*}\PY{p}{)}\PY{p}{;}
+	\PY{k}{const} \PY{k}{struct} \PY{n}{sysfs\PYZus{}ops} \PY{o}{*}\PY{n}{sysfs\PYZus{}ops}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{attribute} \PY{o}{*}\PY{o}{*}\PY{n}{default\PYZus{}attrs}\PY{p}{;}
+\PY{p}{\PYZcb{}}\PY{p}{;}
+
+\PY{k}{struct} \PY{n}{kset} \PY{p}{\PYZob{}}
+	\PY{k}{struct} \PY{n}{list\PYZus{}head} \PY{n}{list}\PY{p}{;}
+	\PY{n}{spinlock\PYZus{}t} \PY{n}{list\PYZus{}lock}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kobject} \PY{n}{kobj}\PY{p}{;}
+	\PY{k}{struct} \PY{n}{kset\PYZus{}uevent\PYZus{}ops} \PY{o}{*}\PY{n}{uevent\PYZus{}ops}\PY{p}{;}
+\PY{p}{\PYZcb{}}\PY{p}{;}
+\end{Verbatim}

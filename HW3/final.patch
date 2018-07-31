@@ -1,0 +1,121 @@
+diff --git a/arch/x86/kvm/Kconfig b/arch/x86/kvm/Kconfig
+index 413a7bf..81d217a 100644
+--- a/arch/x86/kvm/Kconfig
++++ b/arch/x86/kvm/Kconfig
+@@ -95,6 +95,9 @@ config KVM_DEVICE_ASSIGNMENT
+ 	  framework through VFIO, which supersedes much of this support.
+ 
+ 	  If unsure, say Y.
++config KVM_VMCS
++	bool "Enable VMCS sysfs"
++	default y
+ 
+ # OK, it's a little counter-intuitive to do this, but it puts it neatly under
+ # the virtualization menu.
+diff --git a/arch/x86/kvm/Makefile b/arch/x86/kvm/Makefile
+index 16e8f96..5417381 100644
+--- a/arch/x86/kvm/Makefile
++++ b/arch/x86/kvm/Makefile
+@@ -20,3 +20,4 @@ kvm-amd-y		+= svm.o
+ obj-$(CONFIG_KVM)	+= kvm.o
+ obj-$(CONFIG_KVM_INTEL)	+= kvm-intel.o
+ obj-$(CONFIG_KVM_AMD)	+= kvm-amd.o
++obj-$(CONFIG_KVM_VMCS)  += kvm-vmcs.o
+diff --git a/arch/x86/kvm/kvm-vmcs.c b/arch/x86/kvm/kvm-vmcs.c
+new file mode 100644
+index 0000000..a112420
+--- /dev/null
++++ b/arch/x86/kvm/kvm-vmcs.c
+@@ -0,0 +1,91 @@
++#include <linux/device.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/stat.h>
++#include <linux/string.h>
++#include <linux/sysfs.h>
++#include <asm /vmx.h>
++
++MODULE LICENSE( "GPL");
++MODULE AUTHOR( "Author");
++
++struct kobject m_kobj;
++
++/*the operations for VT-x extensions*/
++extern unsigned long vmcs_readl ( unsigned long field );
++extern void vmcs_writel ( unsigned long field , unsigned long value ) ;
++extern unsigned long get_field_addr( const char * field ) ;
++
++struct attribute m_attr1 = {
++	.name = "VM_EXIT_MSR_STORE_COUNT",	/*attribute's name*/
++	.mode = S_IRWXUGO,					/*permissions*/
++};
++
++/*
++	Default attributes associated with the kobject
++	An array of attribute structures
++*/
++static struct attribute *m_attributes[] = {
++	&m_attr1,
++	NULL, 		//need to NULL terminate the list of attributes
++};
++
++/* method invoked on read of a sysfs file */
++static ssize_t m_show( struct kobject *kobject, struct attribute *attrs , char *buffer)
++{	
++	ssize_t count;
++	unsigned long value;
++	value = vmcs_readl(0x0000400e);
++	count = sprintf(buffer, "%ld\n", value);
++	return count;
++}
++
++/* method invoked on write of a sysfs file */
++static ssize_t m_store( struct kobject *kobject , struct attribute *attrs, const char *buffer, size_t size)
++{
++	unsigned long value;
++	value = simple_strtoul(buffer, NULL, 2);
++	vmcs_writel(0x0000400e, value);
++	return 0 ;
++}
++
++//behaviors of sysfs on read and write
++static struct sysfs_ops m_sysfs_ops = {
++	.show = m_show,
++	.store = m_store,
++};
++
++//deconstructor
++static void vmcs_release(struct kobject * kobject)
++{
++	printk( "[vmcs]release\n");
++}
++
++//the ktype 
++static struct kobj_type m_ktype =
++{
++	.release = vmcs_release,
++	.sysfs_ops = &m_sysfs_ops,
++	.default_attrs = m_attributes,
++};
++
++static int __init vmcs_sysfs_module_init(void)
++{
++	printk ("[vmcs]init\n");
++	
++	//map the m_kobj to the root directory
++	int res = kobject_init_and_add (&m_kobj , &m_ktype , NULL, "vmcs" );
++	return res;
++}
++
++static void __exit vmcs_sysfs_module_exit ( void )
++{
++	printk("[vmcs]exit\n");
++	
++	//remove the sysfs representation of m_kobj
++	kobject_del(&m_kobj);
++}
++
++module_init( vmcs_sysfs_module_init );
++module_exit( vmcs_sysfs_module_exit );
+\ No newline at end of file

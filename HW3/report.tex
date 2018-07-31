@@ -1,0 +1,310 @@
+\documentclass[letterpaper,10pt,onecolumn]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{setspace}
+\usepackage{alltt}
+\usepackage{float}
+\usepackage{color}
+\usepackage{url}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+}
+
+\usepackage{balance}
+%\usepackage[TABBOTCAP, tight]{subfigure}
+\usepackage{enumitem}
+\usepackage{pstricks, pst-node}
+
+\usepackage{geometry}
+\geometry{textheight=8.5in, textwidth=6in}
+\geometry{margin=0.75in}
+
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{longtable}
+
+%\usepackage{mdframed}
+
+\usepackage[many]{tcolorbox}
+%\usepackage{lipsum}
+%
+%\newtcbtheorem[number within=section]{example}{Example}{
+%  breakable,
+%  colback=green!5,
+%  colframe=green!35!black,
+%  fonttitle=\bfseries}{x}
+
+%random comment
+
+\newcommand{\cred}[1]{{\color{red}#1}}
+\newcommand{\cblue}[1]{{\color{blue}#1}}
+\newcommand{\toc}{\tableofcontents}
+\newcommand{\RN}[1]{\textup{\uppercase\expandafter{\romannumeral#1}}}
+%\usepackage{hyperref}
+
+\def\name{Botong Qu}
+
+%pull in the necessary preamble matter for pygments output
+\input{pygments.tex}
+
+%% The following metadata will show up in the PDF properties
+% \hypersetup{
+%   colorlinks = false,
+%   urlcolor = black,
+%   pdfauthor = {\name},
+%   pdfkeywords = {cs311 ``operating systems'' files filesystem I/O},
+%   pdftitle = {CS 311 Project 1: UNIX File I/O},
+%   pdfsubject = {CS 311 Project 1},
+%   pdfpagemode = UseNone
+% }
+
+\parindent = 0.0 in
+\parskip = 0.1 in
+\singlespacing
+
+\begin{document}
+\IEEEtitleabstractindextext{%
+\begin{abstract}
+To allow multiple system share processor resources, Intel and AMD start to introduce x86 virtualization in last decade \cite{wiki:x86virt}. Virtual Machine Control Structure (\emph{VMCS}) is a data structure in memory that exists for each Virtual Machine (\emph{VM}) and managed by the VMM (Virtual Memory Monitor). In this project, I implement a sysfs interface which can access the VMCS and allow users to change the setting of it safely.
+\end{abstract}
+}
+
+\begin{titlepage}
+\begin{center}
+
+\vspace*{10\baselineskip} % White space at the top of the page
+
+\rule{\textwidth}{1.6pt}\vspace*{-\baselineskip}\vspace*{2pt} % Thick horizontal rule
+\rule{\textwidth}{0.4pt} % Thin horizontal rule
+
+\vspace{0.75\baselineskip} % Whitespace above the title
+
+{\LARGE FINAL PROJECT REPORT} % Title
+
+\rule{\textwidth}{0.4pt}\vspace*{-\baselineskip}\vspace{3.2pt} % Thin horizontal rule
+\rule{\textwidth}{1.6pt} % Thick horizontal rule
+
+\vspace{6\baselineskip} % Whitespace above the title
+
+{\scshape\Large Botong Qu (Group 57)\\} % Editor list
+
+\vspace{4\baselineskip} % Whitespace after the title block
+
+CS554 OPERATING SYSTEM \RN{2}
+
+FALL 2017
+
+\vspace*{2\baselineskip} % Whitespace under the subtitle
+DEC 6, 2017
+\vspace*{10\baselineskip} % Whitespace under the subtitle
+\IEEEdisplaynontitleabstractindextext
+\end{center}
+
+\end{titlepage}
+
+\tableofcontents
+\newpage
+%input the pygmentized output of mt19937ar.c, using a (hopefully) unique name
+%this file only exists at compile time. Feel free to change that.
+
+\section{Introduction}
+\subsection{VMM}
+In the operating system, the Virtual Machine Monitor (\emph{VMM}) create several virtual machines, each one for a target machine. In order to run the applications inside each Virtual Machine (\emph{VM}), the VMM need to manage all the processes running inside each VM (\emph{guests}) to make sure they are not interfere with each other and also not interfere the Virtual Machine (\emph{host}).
+
+\subsection{VMX}
+To support the sharing of the CPU resources, both AMD and intel introduce new features to their new generation CPU to support the x86 virtualization on the processor-level. These new features (operations) for Intel CPUs are called Virtual Machine Extention (\emph{VMX}) and are managed by the VMM. This new technology is called \emph{VT-x} and helps solve the problem that the x86 instructions cannot be virtualized. This new technology reduce the necessary of of software virtualization like binary translation.
+
+There two kinds of the VMX operations, the root operations which are the operations from the host (\emph{VM}), and the non-root operations which are the operations run by the guest in each VM. With the help of the VMX, VMM will run in VMX root-mode and the guest instructions will be run directly on the hardware by calling the VMX non-root operations. The VMX provide routine for the transitions between root operations and non-root operations. We call it \emph{VM Entry} when one operation passed from root to non-root mode, and \emph{VM Exit} when one operation passed from non-root to root mode.
+
+\subsection{VMCS}
+Virtual Machine Control Structure (\emph{VMCS}) is a six-part data-structure (fits in a page-frame) used to manage the non-root VMX operations and their transitions. Each VMCS is created for each VM and managed by the VMM.  CPU is informed the physical address of each VMCS when the guests initialize each VMCS, then there is no further direct access to a VMCS. The only indirect access to the VMCS by the VMX operations. Only one VMCS can be activated at one moment.
+
+\subsection{VMCS Regions}
+There are six logical groups of the VMCS:
+\begin{itemize}
+  \item The \emph{Guest-State} area: VM enter will call this state of the processor and update it when VM exit.
+  \item The \emph{Host-State} area: VM exit will call this state.
+  \item The VM-execution Control fields: Specify the allowed operations and will call VM exit for unallowed operations.
+    \item The VM-enter Control Fields: It defines several flags and fields to control the VM enter.
+  \item The VM-exit Control fields:  It defines several flags and fields to control the VM exit.
+  \item The VM-exit Information fields: When VM exit, the reason and other information will be saved here.
+\end{itemize}
+
+\subsection{VMX Instructions}
+There are ten VMX instructions provided to allows multiple operating systems to share simultaneously $x86$ processor resources in a safe and efficient manner \cite{WMXinstructions}.
+\begin{itemize}
+  \item \emph{VMXON} and \emph{VMXOFF}: Causes a logical processor to enter VMX root operation or leave the VMX operation.
+  \item \emph{VMPTRLD}: It makes the referenced VMCS active and current.
+   \item \emph{VMPTRST}: Current-VMCS pointer is stored into the destination operand.
+  \item \emph{VMCLEAR}: Set the launch state of the VMCS inactive, and write to the VMCS-data area in the referenced VMCS region.
+  \item \emph{VMREAD} and \emph{VMWRITE}: Reads or writes a component from the VMCS and stores it into a destination operand.
+  \item \emph{VMLAUNCH} and \emph{VMRESUME}: Launches or resumes a virtual machine managed by the VMCS. A VM entry occurs, transferring control to the VM.
+  \item \emph{VMCALL}: Allows a guest in VMX non-root operation to call the VMM for service. A VM exit occurs, transferring control to the VMM
+\end{itemize}
+
+\section{Setting Up }
+This section describes the necessary steps used to prepare the minnowboard before starting the kernel development.
+\subsection{Prepare the Minnowboard}
+MinnowBoard is a piece of hardware offering performance, flexibility, openness, and support of standards for the smallest of devices. It includes a intel Atom processor which introduces intel Architecture to the developer and maker community.
+
+In the class, the minnowboard Kevin provided to use can be treated as a small computer. It includes a mother board, a ethernet port, two usb ports and an micro hdmi output port. The microSD card inserted into the minnowboard can be treated as the hard disk. To develop the kernel in this little computer, we need to follow several steps to finish the setting us:
+\begin{itemize}
+  \item Get the necessary hardwares such as the minnowboard, the microSD card, the cables including a cable connect the micro HDMI to HDMI and a LAN cable to connect the ethernet. Then boot the minnowboard.
+  \item Install a CentOS 7.0 operating system to the minnowboard as our development environment.
+  \item Get the kernel, build and install it to the OS running on the minnowboard.
+\end{itemize}
+More details and the commands used in each step is shown in the following sections
+\subsubsection{Boot Minnowboard}
+After connecting the minnowboard with a monitor, turn on the minnowboard by clicking the button on it. Then you should be able to see two led lights turned on. More specifically, the left one indicates the power, the right one indicates the system is on. Then we should be able to see the shell on the screen. This is a build in shell within the minnowboard, you can use the command
+\begin{verbatim}
+$ exit
+\end{verbatim}
+to start the boot manager and set it boot from the use device.
+\begin{verbatim}
+$ date
+\end{verbatim}
+command can be used to test the working of the build in shell.
+\subsubsection{Install CentOS 7.0}
+To install the CentOS 7.0, we will need a USB flash and make it a bootable image of the system installment file. To to this, I download the CentOS 7.0 minimal from \url{http://centos-distro.1gservers.com/7/isos/x86_64/CentOS-7-x86_64-Minimal-1708.iso} . Then I use a software called rufus to burn the iso and create the bootable device. This software will automatically finish all these by very each interactions.
+
+After creating the bootable CentOS installment device, we can just connect this device with the minnowboard and let the minnow board boot from the USB. Then the CentOS installment will automatically start.
+
+Need to note that with installing the minimal version of CentOS, we will not have any GUI after booting the system. This is a little different from the Ubuntu installment. However, we can install the Gnome Desktop by using following command:
+\begin{verbatim}
+$ yum -y groups install "GNOME Desktop"
+\end{verbatim}
+To start the desktop GUI, we can use the following command:
+\begin{verbatim}
+$ startx
+\end{verbatim}
+\subsubsection{Connect Internet}
+To start update the OS and install necessary dependencies, I need to connect the minnowboard to the internet. This step is very easy if we have a router and can directly connect the router to the minnowboard by using a Lan cable.
+
+However, if we want to do this project at campus. OSU ethernet will not provide a proper connection since we are using a ResNet to provide the service. Even using a USB wifi adapter will not help us since CentOS may not have the necessary drivers.
+
+Here are some commands I used to check the ethernet connect status. From this command, we can check the name of the ethernet port and its connection situation. For our case, the default ethernet is named after \emph{enp2so}.
+\begin{verbatim}
+$ nmcli d	
+\end{verbatim}
+By using the following command, we can set the ethernet connection. Make the available ethernet automatically connect and it will achieve the IP address automatically when connecting the LAN cable
+\begin{verbatim}
+$ nmtui
+\end{verbatim}
+\subsubsection{Install Necessary Dependencies}
+After above steps, we need to start to install some necessary dependencies to build and install the kernel. I use following commands to install the git for version control and patch generation.
+\begin{verbatim}
+$ yum install git
+\end{verbatim}
+To build the kernel, we will need the gcc and its dependencies. I use the following command to install all tools related to the development such as gcc, gdb, etc.
+\begin{verbatim}
+$ yum -y group install "Development Tools"
+\end{verbatim}
+To use the menuconfig to set the configurations of the kernel, we will need to install the \emph{ncurses} dependency with following command:
+\begin{verbatim}
+$ sudo yum install ncurses-devel
+\end{verbatim}
+\subsection{Get Kernel Source Codes}
+To start to work on the kernel-4.1.5, we need to first download it from Linux official repository by using following command
+\begin{verbatim}
+$ wget https://www.kernel.org/pub/linux/kernel/v4.x/linux-4.1.5.tar.xz
+\end{verbatim}
+Then we need to extract it to the /usr/src directory by using
+\begin{verbatim}
+$ tar xf linux-4.1.5.tar.xz -C /usr/src
+\end{verbatim}
+\subsection{Setting Up .config}
+Now we need to start to construct a configuration file for the new kernel. Kevin provided a minimal.config. To make it work with the minnowboard, we also need to combine the required configuration for the minnowboard with this minimal.config. So what we need to do at first is copy the provided minimal.config to the kernel folder. For me, I used following commands to finish this step:
+\begin{verbatim}
+$ cp minimal.config /usr/src/linux-4.1.5/
+$ cd /usr/src/linux-4.1.5/
+$ mv minimal.config .config
+\end{verbatim}
+After creating the .config file, we then need to download the minnowboard configuration and combine it with this config file together by using below commands \cite{minnowboard}:
+\begin{verbatim}
+$ wget http://www.elinux.org/images/e/e2/Minnowmax-3.18.txt
+$ scripts/kconfig/merge_config.sh .config Minnowmax-3.18.txt
+\end{verbatim}
+
+Need to note, we can use
+\begin{verbatim}
+$ make menuconfig
+\end{verbatim}
+to set the configuration with a GUI \cite{configkernel}. Aslo, we need to change the .config file to make it include support for our chosen file system and LVM. For my case, by using the command
+\begin{verbatim}
+$ df -Th
+\end{verbatim}
+we can find that our /boot is using a xfs file system, so I changed the the configuration in the menuconfig by selecting the \emph{xfs filesystem support} under the \emph{file system} option. Also, I turned turned on every sub options under the \emph{xfs filesystem support}.
+\subsection{Build and Install the Kernel}
+After all above preparation works, I can start to compile the kernel \cite{firstpatch} by using
+\begin{verbatim}
+$ make -j4
+$ make -j4 modules
+\end{verbatim}
+Then we can install the compiled kernels by using
+\begin{verbatim}
+make modules_install install
+\end{verbatim}
+Then after rebooting the OS, we should be able to see a new compiled kernel in the booting page.
+
+ Need to note that if you need to remove the compiled kernel, you may need to use following commands \cite{removeKernel} to remove all the compiled image.
+ \begin{verbatim}
+$ cd /lib/modules/
+$ rm -rf *4.1.5*
+$ cd /boot/
+$ rm -rf *4.1.5*
+\end{verbatim}
+Then we need to edit the grub.cfg in dir \url{/boot/efi/EFI/centos/} to remove the new added options.
+
+\section{Implementation of Sysfs}
+This section introduces the details about the implementation I applied for the vmcs interface in sysfs.
+\subsection{Introduction of Related Data Structure}
+To be able to manipulate the exposed VMCS, we need to create several attribute to the associated kobject. Each attribute will need its own get and set functions to make sure the users can access these variables by the sysfs. These functions should call the VMX operations \emph{VMREAD} and \emph{VMWRITE} to get or update the states of the VMCS.
+
+\input{__code.c.tex}
+
+Based on the \cite{love2010linux} chapter 17, for each interface, I create a \emph{kobject} to and this kobject need to be assigned a right \emph{ktype} and be grouped with other devices by manipulating their belonged \emph{kset}.
+
+In the kobject struct, the name pointer points to the name of this kobject. The parent pointer points to this kobject's parent. The sd pointer points to a sysfs\_dirent structure that represents this kobjec in sysfs. The kref structure provides a reference counting. The kset and ktype describe and group the kobjects.
+
+Kobjects are associated with ktype, which is used to describe default behavior for a family of kobjects. sysfs\_ops are the behaviors defined for all kobjects in this group of ktype. The release pointer points to the deconstructor when a kobjects's reference count reaches zero. The default attributes associated with this kobject and represent its related properties.
+
+Kset works as basic container class for a set of kernel objets. In this struct, list stores all kobjects in this kset, list\_lock is used for synchronization programming. kobj represent a typical class for this set, and uevent\_ops is used to communicate with user-space information.
+\subsection{Change the Kconfig}
+To show the configuration of the vmcs in the menuconfig, we need to change the Kconfig file in directory \url{/arch/x86/kvm/}. We need to add following codes to create a new option and set this to true in the menuconfig setting process.
+ \begin{verbatim}
+config KVM_VMCS
+    bool "Enable VMCS sysfs"
+    default y
+\end{verbatim}
+
+\subsection{Implementation of Module}
+\emph{Sysfs} is a pseudo file system \cite{sysfs} provided by the Linux kernel and can export the information of kernel such as hardware devices, associated drivers to the user space through virtual files. Users can change the config or check the parameters of the hardware devices provided in the sysfs by operating the virtual files under \url{/sys/} directory.
+
+I create a new file called kvm-vmcs.c under the directory \url{/arch/x86/kvm/}. In this module, I create a kobject m\_kobj. To add the created kobject to sysfs, I use the k\emph{kobject\_init\_and\_add} routine to specify the koject's location and relative hierarchy. In the module exit function, I use the \emph{kobject\_del } to delete the created kobject.
+
+We need to define the attribute and associate it with kobj we created by set the \emph{sysfs\_ops}. The struct \emph{sysfs\_ops} will be used to address the \emph{show(read)} and \emph{store(write)} behaviors of the sysfs. I define a \emph{struct sysfs\_ops} \emph{m\_sysfs\_ops} and assign it to the sysfs\_ops pointer in defined ktype \emph{struct kobj\_type m\_ktype}.
+
+
+
+\subsection{Change the Makefile}
+To build the new added module, we need to change the makefile in dir \url{/arch/x86/kvm/}. We need to add one line as following to allow the kvm-vmcs.c file can be compiled by the make command.
+ \begin{verbatim}
+obj-$(CONFIG_KVM_VMCS)	+= kvm-vmcs.o
+\end{verbatim}
+
+For more information, please refer to the kernel patch in the section \ref{sec:patch}.
+
+\section{Appendix: Kernel Patch}\label{sec:patch}
+\input{final.patch.tex}
+
+\bibliographystyle{IEEEtran}
+\bibliography{IEEEabrv,reportbib}
+
+\end{document}
