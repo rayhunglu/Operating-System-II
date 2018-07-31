@@ -1,0 +1,209 @@
+\documentclass[onecolumn, draftclsnofoot,10pt, compsoc]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}                                                                                 
+\usepackage{url}
+\usepackage{listings}
+
+\usepackage[margin=0.75in]{geometry}
+\geometry{textheight=9.5in, textwidth=7in}
+\usepackage[noadjust]{cite}
+\nocite{*}
+%random comment
+
+\usepackage{hyperref}
+\usepackage{geometry}
+\linespread{1}
+\def\name{Rahul Borkar}
+
+\usepackage{titling}
+\title{Writing1:Processes, Threads, and CPU Scheduling in Linux, FreeBSD, and Windows}
+\author{
+  Jui-Hung Lu
+}
+\date{April 18th, 2018}
+
+%% The following metadata will show up in the PDF properties
+\hypersetup{
+  colorlinks = true,
+  urlcolor = black,
+  pdfauthor = {\name},
+  pdfkeywords = {cs544 ``operating systems'' },
+  pdftitle = {CS 544 Project 1: Getting Acquainted},
+  pdfsubject = {CS 544 Project 1},
+  pdfpagemode = UseNone
+}
+
+\begin{document}
+\maketitle
+\begin{center}
+CS544: Operating Systems II \\
+Spring 2018
+\vspace{50 mm}
+\end{center}
+\begin{abstract}
+In this assignment for the course, we will research how Linux, FreeBSD and Windows to do processes, threads and CPU Scheduling. After then, compare Linux with FreeBSD and Windows and discuss what's the difference and which is better.
+\end{abstract}
+\newpage
+
+\section{Processes and Threads}
+Processes are the foundation of running program. Thread is the important to deal with multiprocessing.
+
+\subsection{Linux}
+Linux can manage the processes in the system which is represented by a \textit{task\_struct} structures which defined in \textit{$\langle$linux/sched.h$\rangle$}. The \textit{task\_vector} is an array of pointers to every \textit{task\_struct} structure in the system. To make it easy to find, the current, running, process is pointed to by the current pointer.[1]
+
+Normally, Linux supports real time processes which have very quick react and using scheduler to deal with on external events.[1]
+
+Linux processes have the following states:  Running, Waiting, Stopped, and Zombie[2]
+
+Because Linux is a multi-user system, every process in the system has a process identifier (PID). The PID is not an index into the \textit{task\_vector}, it is simply a number. Each process also has User and group identifiers, these are used to control this processes access to the files and devices in the system like fork(), exec(), and kill().[1] 
+
+About the threads in Linux, there is no concept of a thread. Linux implements all threads as standard processes. A thread in Linux kernel is barely a process that shares certain resources with other processes. Each thread has a unique \textit{task\_struct} and appears to the kernel as a normal process.[3]
+
+\subsection{FreeBSD}
+Processes in FreeBSD is based on struct \textit{proc} [5]
+
+\begin{lstlisting}[caption={Excerpt from \textit{proc} structure}]
+struct  proc {
+        struct  proc *p_forw;           /* Doubly-linked run/sleep queue. */
+        struct  proc *p_back;
+        struct  proc *p_next;           /* Linked list of active procs */
+        struct  proc **p_prev;          /*    and zombies. */
+
+        /* substructures: */
+        struct  pcred *p_cred;          /* Process owner's identity. */
+        struct  filedesc *p_fd;         /* Ptr to open files structure. */
+        struct  pstats *p_stats;        /* Accounting/statistics (PROC ONLY). */
+        struct  plimit *p_limit;        /* Process limits. */
+        struct  vmspace *p_vmspace;     /* Address space. */
+        struct  sigacts *p_sigacts;     /* Signal actions, state (PROC ONLY). */
+
+#define p_ucred         p_cred->pc_ucred
+#define p_rlimit        p_limit->pl_rlimit
+
+        int     p_flag;                 /* P_* flags. */
+        char    p_stat;                 /* S* process status. */
+        char    p_pad1[3];
+
+        pid_t   p_pid;           /* Process identifier. */
+        struct  proc *p_hash;    /* Hashed based on p_pid for kill+exit+... */
+        struct  proc *p_pgrpnxt; /* Pointer to next process in process group. */
+        struct  proc *p_pptr;    /* Pointer to process structure of parent. */
+        struct  proc *p_osptr;   /* Pointer to older sibling processes. */
+        
+        ...
+
+\end{lstlisting}
+
+The first process is always init with it's own address and a PID of 1, and each process has a parent process and zero or more child processes. FreeBSD also creates new processes with the fork() function.[4] 
+
+About the threads, FreeBSD provide any special scheduling semantics or data structures to represent threads. In addition, FreeBSD deals with interrupt handlers by giving them their own thread context. This interrupt threads run at real-time kernel priority, so it should not execute for very long to avoid starving other kernel threads. Because multiple handlers may share an interrupt thread, it should not sleep or use a sleep-able lock to avoid starving another interrupt handler.[6] 
+
+Threads are represented by the \textit{thread} structure[7]
+
+\begin{lstlisting}[caption={Excerpt from \textit{thread} structure}]
+struct thread {
+    struct mtx  *volatile td_lock; /* replaces sched lock */
+    struct proc *td_proc;   /* (*) Associated process. */
+    TAILQ_ENTRY(thread) td_plist;   /* (*) All threads in this proc. */
+    TAILQ_ENTRY(thread) td_runq;    /* (t) Run queue. */
+    TAILQ_ENTRY(thread) td_slpq;    /* (t) Sleep queue. */
+    TAILQ_ENTRY(thread) td_lockq;   /* (t) Lock queue. */
+    LIST_ENTRY(thread) td_hash; /* (d) Hash chain. */
+    struct cpuset   *td_cpuset; /* (t) CPU affinity mask. */
+    struct seltd    *td_sel;    /* Select queue/channel. */
+    struct sleepqueue *td_sleepqueue; /* (k) Associated sleep queue. */
+    struct turnstile *td_turnstile; /* (k) Associated turnstile. */
+    struct rl_q_entry *td_rlqe; /* (k) Associated range lock entry. */
+    struct umtx_q   *td_umtxq;  /* (c?) Link for when we're blocked. */
+    struct vm_domain_policy td_vm_dom_policy;   /* (c) current numa domain policy */
+    lwpid_t     td_tid;     /* (b) Thread ID. */
+    sigqueue_t  td_sigqueue;    /* (c) Sigs arrived, not delivered. */
+#define td_siglist  td_sigqueue.sq_signals
+    u_char      td_lend_user_pri; /* (t) Lend user pri. */
+
+\end{lstlisting}
+
+In conclusion, although processes are very similar between Linux and FreeBSD, process management is quite different because of difference on CPU scheduling. Because of the difference on the permission bestowed on execution, it make them have more difference on processes.
+
+Besides, the way they deal with threads are different, too. Linux choses to use the same structure for threads and processes. In FreeBSD, it uses different structure to running processes and threads.
+
+\subsection{Windows}
+Windows through \textit{CreateProcess} function to creates a new process, which runs independently of the creating process. However, for simplicity, the relationship is referred to as a parent-child relationship.
+
+If \textit{CreateProcess} succeeds, it returns a \textit{process information} structure containing handles and identifiers for the new process and its primary thread. The thread and process handles are created with full access rights, although access can be restricted if you specify security descriptors. When you no longer need these handles, close them by using the \textit{CloseHandle} function.[8]
+
+Windows through \textit{CreateThread} function creates a new thread for a process. The function should specify the starting address of the code that the new thread executes. Typically, the starting address is e name of a function defined in the program code. This function takes a single paramtheter and returns a \textit{DWORDvalue}.[9] 
+
+In conclusion, Linux are similar to FreeBSD because they use very similar data structures for storing process information. In Windows, it uses a priority queue that it pops processes threads in and out of as their priorities change and their turn arrives for CPU time.[13] Besides,it does not have be initialized every time a new process is created.
+About the way Windows run its thread, it implements a priority queue which is maintained by the Windows scheduler. On the other hand Linux primarily focuses on an interactivity score.
+
+\section{CPU Scheduling}
+CPU scheduling is the important part to control running processes and threads.
+
+\subsection{Linux}
+The Completely Fair Scheduler, which also called CFS, was implemented as the default Linux scheduler. The most notable difference is that CFS is not based on run queues for process selection. Instead, it uses a red-black tree with O(log N) complexity that is indexed by CPU time spent.[10]
+
+In Linux, processes cannot stop the current, running process from running so that they can run. Each process decides to relinquish the CPU that it is running on when it has to wait for some system event. If a process may need to wait for a character to be read from a file, the waiting process will be suspended and another which have more deserving process will be chosen to run.
+
+It is the scheduler that must select the most deserving process to run out of all of the runnable processes in the system.
+
+\subsection{FreeBSD}
+FreeBSD has a default scheduler called the ULE scheduler. ULE is the successor to the traditional BSD scheduler. It offers much improved performance on SMP systems as well as uniprocessor systems. It follows a more traditional design with run queues and time slices. It can be instructed to favor interactive processes be fair in the same time.[10]
+
+Both the CFS and ULE schedulers are suitable for desktop use. Withkern.sched.interactset, ULE favors interactive processes. Without it, CFS and ULE should be equally fair. Besides, ULE lands at roughly 3000 lines of code, while CFS is pushing close to the double of that.
+
+In conclusion, the default scheduler in Linux and FreeBSD is not complete same. FreeBSD share time depends on an "interactivity score", but Linux distribute compute time between different processes fairly.
+
+\subsection{Windows}
+Windows didn’t have specific scheduler, there are different scheduler in every version of windows. Windows 3.1 xs used a non-preemptive scheduler, meaning that it did not interrupt programs. Windows 95 introduced a rudimentary preemptive scheduler; however, for legacy support opted to let 16 bit applications run without preemption. NT-based versions of Windows use a CPU scheduler based on a multilevel feedback queue, with 32 priority levels defined. Windows XP uses a quantum-based, preemptive priority scheduling algorithm. The scheduler was modified in Windows Vista to use the cycle counter register of modern processors to keep track of exactly how many CPU cycles a thread has executed, rather than just using an interval-timer interrupt routine.[11][12]
+
+Windows, like all modern operating systems, will have round robin as the core of its scheduling. But it will be modified to maybe give higher priority to higher priority tasks to ensure that the operating system is running as efficiently as possible at all times.[12]
+
+In conclusion, scheduling in Windows seems much simpler than scheduling in Linux using the default CFS. Windows also does not have a dedicated scheduler and instead uses what is referred to as the kernel's dispatcher. I also see more of a chance for starvation using Windows' more simplistic method of scheduling.
+
+\newpage
+
+\begin{thebibliography}{14}
+\bibitem{}
+Rusling D.A., \textit{Chapter 4Processes},1996-1999 \\
+Available: \url{https://www.tldp.org/LDP/tlk/kernel/processes.html}
+\bibitem{}
+Kili A., \textit{All You Need To Know About Processes in Linux},2017 \\
+Available: \url{https://www.tecmint.com/linux-process-management/}
+\bibitem{}
+Love R., \textit{Linux Kernel Process Management},2005 \\
+Available: \url{http://www.informit.com/articles/article.aspx?p=370047&seqNum=3}
+\bibitem{}
+McKusick M.K., \textit{Chapter2.Design Overview of 4.4BSD},1996 \\
+Available: \url{https://www.tldp.org/LDP/tlk/kernel/processes.html}
+\bibitem{}
+\textit{struct proc Structure},1997, FreeBSD Inc \\
+Available: \url{https://people.freebsd.org/~meganm/data/tutorials/ddwg/ddwg63.html}
+\bibitem{}
+\textit{Interrupt Handling},2000-2006,FreeBSD Architecture Handbook \\
+Available: \url{https://www.freebsd.org/doc/en/books/arch-handbook/smp-design.html}
+\bibitem{}
+The FreeBSD Project Github, 1995 \\
+Available: \url{https://github.com/freebsd/freebsd/blob/master/sys/sys/proc.h}
+\bibitem{}
+\textit{Creating Processes},Micorsoft\\
+Available: \url{https://msdn.microsoft.com/en-us/library/windows/desktop/ms682512(v=vs.85).aspx}
+\bibitem{}
+\textit{Creating Threads},Micorsoft \\
+Available: \url{https://msdn.microsoft.com/en-us/library/windows/desktop/ms682516(v=vs.85).aspx}
+\bibitem{}
+\textit{Difference between FreeBSD scheduler and Linux Scheduler},2013,stack overflow \\
+Available: \url{https://stackoverflow.com/questions/14918797/difference-between-freebsd-scheduler-and-linux-scheduler}
+\bibitem{}
+Gupta R.K., \textit{Compare cpu scheduling of linux and windows},2015,Ukessays \\
+Available: \url{https://www.ukessays.com/essays/information-systems/compare-cpu-scheduling-of-linux-and-windows.php}
+\bibitem{}
+Menezes M., \textit{Which CPU scheduling algorithms are used in Windows?},2015, Quora \\
+Available: \url{https://www.quora.com/Which-CPU-scheduling-algorithms-are-used-in-Windows}
+\bibitem{}
+Raymond C, \textit{When you set a 100 percent CPU program to real-time priority, you get what you asked for},2010, Microsoft \\
+Available: \url{https://blogs.msdn.microsoft.com/oldnewthing/20100610-00/?p=13753}
+\end{thebibliography}
+
+
+\end{document}
