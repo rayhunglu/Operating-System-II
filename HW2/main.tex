@@ -1,0 +1,148 @@
+\documentclass[onecolumn, draftclsnofoot,10pt, compsoc]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}                                                                         
+\usepackage{url}
+\usepackage{listings}
+
+\usepackage[margin=0.75in]{geometry}
+\geometry{textheight=9.5in, textwidth=7in}
+\usepackage[noadjust]{cite}
+%random comment
+
+\usepackage{hyperref}
+\usepackage{geometry}
+\linespread{1}
+\def\name{Rahul Borkar}
+
+\usepackage{titling}
+\title{Project 2: I/O Elevators}
+\author{
+  Jui-Hung Lu \hspace{1cm}
+  \and
+  Yi Li \hspace{1cm}
+  \and
+  Rahul Borkar
+}
+\date{May 6th, 2018}
+
+%% The following metadata will show up in the PDF properties
+\hypersetup{
+  colorlinks = true,
+  urlcolor = black,
+  pdfauthor = {\name},
+  pdfkeywords = {cs544 ``operating systems'' },
+  pdftitle = {CS 544 Project 1: Getting Acquainted},
+  pdfsubject = {CS 544 Project 1},
+  pdfpagemode = UseNone
+}
+
+\nocite{*}
+\begin{document}
+\begin{titlepage}
+
+\maketitle
+\begin{center}
+CS544: Operating Systems II \\
+Spring 2018
+\vspace{50 mm}
+\end{center}
+\begin{abstract}
+In this second assignment we implement the C-LOOK elevator using the existing noop I/O scheduler code as a skeleton. We then rebuild our kernel from Project 1 and run the emulator using our new elevator. 
+\end{abstract}
+\end{titlepage}
+\section{Design}
+This assignment required additional research to determine the exact characteristics of a LOOK or C-LOOK I/O Scheduler. Our first task was to choose an algorithm. We decided to implement C-LOOK because it tends to be less biased than LOOK.
+
+CLOOK is similar to CSCAN disk scheduling. In CLOOK, the disk arm only scans in one direction, which allows it to be less biased than LOOK based algorithms. LOOK may not service a request that is far away for a long time, while CLOOK will be much more consistent in this regard.
+
+To start our design, we looked at the \textit{noop\_iosched.c} file. The bulk of our work went into designing the \textit{dispatch} and \textit{add\_request} functions. When adding a new request is being added, we use first check if the queue is empty. If it is, we can immediately put the request into the queue. If not, we determine the correct position to place it in according to the current head of the queue by looping through the current queue.
+
+To handle dispatching requests, we first check if the queue is not empty. If it isn't then we service the head of the queue, remove it, do a dispatch sort, and update the queue head.
+
+\section{Version Control Log}
+\begin{center}
+ \begin{tabular}{||c c c||} 
+ \hline
+ Date & Commit & Message \\ [0.5ex] 
+ \hline\hline
+ 5/3/18 & \href{https://github.com/borkarr/cs544/commit/37bebf19cb4b92bad40f2cfc99ac1b254e8d1cbe}{37bebf} & Start HW2\\
+ \hline
+5/3/18 & \href{https://github.com/borkarr/cs544/commit/da8003ddb051b928d59c457e08bee968c06c5788}{da8003} & Update Makefile and Kconfig\\ 
+ [1ex] 
+ \hline
+5/6/18 & \href{https://github.com/borkarr/cs544/commit/a9b93bcecb36ad7db8387eb7c2856b723ebbe25b}{a9b93b} & Done with code\\ 
+ [1ex] 
+\hline
+5/6/18 & \href{https://github.com/borkarr/cs544/commit/0719214323154c06770925181ab1110277634b09}{071921} & Fixed patch file\\ 
+ [1ex] 
+ \hline
+\end{tabular}
+\end{center}
+%input the pygmentized output of mt19937ar.c, using a (hopefully) unique name
+%this file only exists at compile time. Feel free to change that.
+
+\section{Work Log}
+\begin{center}
+ \begin{tabular}{||c c c ||} 
+ \hline
+ Date & Hours&Work Done\\ [0.5ex] 
+ \hline\hline
+ 5/1/18 & 1 & Group meeting, discussed which algorithm to use and started pseudocode
+\\ 
+ \hline
+  5/3/18 & 4 & Finished implementing solution\\ 
+ \hline
+ 5/6/18 & 2 & Finished writeup, patch created, submitted\\
+ [1ex] 
+ \hline
+\end{tabular}
+\end{center}
+\section{Questions}
+\subsection{What do you think the main point of this assignment is?}
+
+There are a couple of things we learned from this assignment. First, we gained some insight into how block I/O works and specifically how it is handled in the Linux kernel. Knowing how to handle block I/O is important for doing more complex kernel programming.
+
+Another big step for this assignment was learning how to modify and rebuild the Linux kernel and to learn how to debug our modifications. This portion of the assignment was very difficult, because it can be difficult to tell if things aren't working if proper debugging and testing have not been set up.
+
+\subsection{How did you personally approach the problem? Design decisions, algorithm, etc.}
+
+As mentioned before, we decided to use CLOOK because it is generally fairer and the linear operation seemed simpler to us. 
+
+From here we read up on the exact operation of the algorithm, and pseudocoded our solution until we agreed on a general algorithm. While our algorithm was sound for the most part, there were a couple of issues we did not consider, like the queue being empty. 
+
+The hardest part by far was debugging. We knew that our solution was good, or at least close to correct, but for some reason our printk statements were not being output to the kernel beyond the queue initialization. It turns out this was an issue with how we were booting up our VM, and after fixing that using the qemu documentation\cite{qemu_ref} we could see our full console output. 
+
+\subsection{How did you ensure your solution was correct? Testing details, for instance.}
+
+There were a few steps to testing our solution. First, we added printk statements after any operation was completed by the scheduler, so we could see a verbose output of what it was exactly doing. Within these statements, we included whether it was reading or writing, and what sector it was performing that operation on. With this, we could easily tell if it was working correctly; it should have been servicing requests in a linear fashion and not skipping things or going backwards. We we re able to verify this by booting up the VM and doing some basic I/O operations by hand and using dmesg | grep SSTF to observe our algorithm working correctly.
+
+\subsection{What did you learn?}
+
+In this assignment, we learned how to implement our own block I/O scheduler, and rebuild and boot the Linux kernel with our changes. We also learned some of the differences between some of the block scheduling algorithms that are commonly used. As mentioned earlier, we also learned the importance of properly setting your VM flags to boot the way you need to; we forgot to turn off virtio which unnecessarily wasted a lot of time. In the future we will be more careful in examining our VM settings.
+
+\subsection{How should the TA evaluate your work? Provide detailed steps to prove correctness.}
+\begin{enumerate}
+\item Set up the VM as HW1 specified, including running the source activation script, but do not build the kernel. 
+\item From the \textit{linux-yocto-3.19} directory apply the patch from our submission by running:
+	git apply \textit{hw2\_group16.patch}  
+\item Run the following command:
+
+  make menuconfig
+\item From the menuconfig go to block layer -- IO schedulers -- default IO scheduler -- select SSTF.
+
+  Save this to .config and exit menuconfig. 
+\item Rebuild the kernel with:
+
+  make -j4 all 
+\item Run the VM with the following command:
+
+  qemu-system-i386 -nographic -kernel arch/x86/boot/bzImage -drive file=core-image-lsb-sdk-qemux86.ext4 -enable-kvm -net none -usb -localtime --no-reboot --append "root=/dev/hda rw console =ttySO debug elevator=sstf"
+\item Once inside the VM, the following command can be used to see the activity of the IO scheduler:
+
+  dmesg | grep SSTF
+\end{enumerate}
+
+
+\bibliographystyle{IEEEtran}
+\bibliography{./ref}
+\end{document}
