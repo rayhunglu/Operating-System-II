@@ -1,0 +1,156 @@
+\documentclass[onecolumn, draftclsnofoot,10pt, compsoc]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}                                                                                 
+\usepackage{url}
+\usepackage{listings}
+
+\usepackage[margin=0.75in]{geometry}
+\geometry{textheight=9.5in, textwidth=7in}
+\usepackage[noadjust]{cite}
+\nocite{*}
+%random comment
+
+\usepackage{hyperref}
+\usepackage{geometry}
+\linespread{1}
+\def\name{Rahul Borkar}
+
+\usepackage{titling}
+\title{Writing2:I/O in Linux, FreeBSD, and Windows}
+\author{
+  Jui-Hung Lu
+}
+\date{May 8th, 2018}
+
+%% The following metadata will show up in the PDF properties
+\hypersetup{
+  colorlinks = true,
+  urlcolor = black,
+  pdfauthor = {\name},
+  pdfkeywords = {cs544 ``operating systems'' },
+  pdftitle = {CS 544 Project 1: Getting Acquainted},
+  pdfsubject = {CS 544 Project 1},
+  pdfpagemode = UseNone
+}
+
+\begin{document}
+\maketitle
+\begin{center}
+CS544: Operating Systems II \\
+Spring 2018
+\vspace{50 mm}
+\end{center}
+\begin{abstract}
+In this assignment for the course, we will research how FreeBSD and Windows do I/O operation. After then, compare them with Linux and discuss what's the difference and which is better.
+\end{abstract}
+\newpage
+\section{Introduction}
+In each operation system, they do I/O operation in different ways. It is because they are based on different foundation producer and designer. However, their goal is same that make I/O system can work efficient and smooth. The research below is about how they do I/O operation and where is the different part.
+\section{FreeBSD}
+\subsection{processes}
+The I/O processes in FreeBSD is based on descriptors which are small unsigned integers obtained from the open and socket system calls. This open system call takes file arguments name and a permission mode in order to specify whether the file should be open for reading or for writing, or for both. This system call also can be used to create a new, empty file. A read or write system call can be applied to a descriptor to transfer data. The close system call can be used to deallocate any descriptor.[1]
+
+In 4.4BSD, descriptors represent three kinds of objects: files, pipes, and sockets.[1]
+A file is a linear array of bytes with at least one name. A file exists until all its names are deleted explicitly and no process holds a descriptor for it.[1]
+A pipe is a linear array of bytes, as is a file, but it is unidirectional and used solely as an I/O stream. The pipe system also supports a named pipe or FIFO. A FIFO has properties identical to a pipe, except that it appears in the filesystem; thus, it can be opened using the open system call. Two processes that wish to communicate each open the FIFO: One opens it for reading, the other for writing.[1] A socket is a transient object that is used for interprocess communication; it exists only as long as some process holds a descriptor referring to it.[1]
+
+\subsection{devices driver}
+
+The devices can be seen as either block or character devices. Normally,the processes through special files in the filesystem to access devices. Kernel-resident software modules termed device drivers handled the I/O operations of these files. Most network-communication hardware devices do not have special files in the filesystem name space, instead are accessible through only the interprocess-communication facilities. It is because the raw-socket interface provides a more natural interface than does a special file.
+
+\subsection{Scheduling}
+
+About the I/O scheduling in FreeBSD, it uses one I/O scheduling method called Common Access Method(CAM). I/O in FreeBSD is implemented as a stack of sorts. The top half of the stack are things like memory mapped files and a buffer cache, the next part of the stack filters data and includes RAID, and CAM is at the bottom and handles queuing [2]. The CAM scheduler has separate read, write, and delete queues. It can also limit the number of requests in a device at one time as well as have a fairness bias. The fairness bias essentially means that the scheduler choosing between read and write requests [3].
+
+The CAM layer sits between the GEOM layer and the rest of the lowest-level device drivers.[2] FreeBSD’s default I/O scheduling policy strives for a general purpose performance across a wide range of applications and media types. Its scheduler does not allow some I/O requests to be given priority over others. It makes no allowances for write amplification in flash devices. GEOM level scheduling is available, but it is limited in what it provides. It is too high in the stack to allow precise control over I/O access patterns. [2]
+
+The Netflix I/O scheduler categorized the normal I/O into a set of new classes. These new classes each had their own queue. These queues exist outside of CAM’s notion of devq, so the periph drivers needed to be modified as described to work around this mismatch. Future work would include generalizing devq in CAM to allow multiple queues.[2]
+
+\section{Windows}
+\subsection{processes and device}
+About the processes and device in Windows, the I/O manager is the core of the I/O system. It defines the orderly framework within which I/O requests are delivered to device drivers. The I/O system is packet driven. Most I/O requests are represented by an I/O request packet (IRP), which travels from one I/O system component to another.The design allows an individual application thread to manage multiple I/O requests concurrently. [3]
+\begin{lstlisting}
+typedef struct _IRP {
+  PMDL            MdlAddress;
+  ULONG           Flags;
+  union {
+    struct _IRP  *MasterIrp;
+    PVOID       SystemBuffer;
+  } AssociatedIrp;
+  IO_STATUS_BLOCK IoStatus;
+  KPROCESSOR_MODE RequestorMode;
+  BOOLEAN         PendingReturned;
+  BOOLEAN         Cancel;
+  KIRQL           CancelIrql;
+  PDRIVER_CANCEL  CancelRoutine;
+  PVOID           UserBuffer;
+  union {
+    struct {
+      union {
+        KDEVICE_QUEUE_ENTRY DeviceQueueEntry;
+        struct {
+          PVOID DriverContext[4];
+        };
+      };
+      PETHREAD   Thread;
+      LIST_ENTRY ListEntry;
+    } Overlay;
+  } Tail;
+} IRP, *PIRP;
+\end{lstlisting}
+IRP Structure[5]
+
+An IRP is a data structure that contains information completely describing an I/O request. The I/O manager creates an IRP in memory in order to represent an I/O operation. Then pass a pointer to the IRP to the correct driver and disposing of the packet. On the other hand, a driver receives an IRP, performs the operation the IRP specifies, and passes the IRP back to the I/O manager. It may because the requested I/O operation has been completed or be passed on to another driver for further processing.[3]
+
+In addition to creating and disposing of IRPs, the I/O manager supplies code that is common to different drivers and that the drivers can call to carry out their I/O processing. By consolidating common tasks in the I/O manager, individual drivers become simpler and more compact. For example, the I/O manager provides a function that allows one driver to call other drivers. It also manages buffers for I/O requests, provides timeout support for drivers, and records which installable file systems are loaded into the operating system. There are close to one hundred different routines in the I/O manager that can be called by device drivers.[3]
+
+The uniform, modular interface that drivers present allows the I/O manager to call any driver without requiring any special knowledge of its structure or internal details. The operating system treats all I/O requests as if they were directed at a file; the driver converts the requests from requests made to a virtual file to hardware-specific requests. Drivers can also call each other (using the I/O manager) to achieve layered, independent processing of an I/O request.[3]
+\subsection{driver}
+
+To allow driver developers to write device drivers that are source-code compatible across all Microsoft Windows operating systems, the Windows Driver Model (WDM) was introduced. Kernel-mode drivers that follow WDM rules are called WDM drivers.There are three kinds of WDM drivers: bus drivers, function drivers, and filter drivers. Bus drivers are for such common bus as PCI, SCSI and USB, and are designed for a bus controller, adapter or bridge. Function drivers are written for a specific device, such as a printer. Filter drivers, which may be non-device drivers, but when they do enable a device they add value to, or change the operation of, a given device or multiple devices.[6]
+
+\subsection{scheduling}
+
+Most I/O operations that applications issue are synchronous (which is the default); that is, the application thread waits while the device performs the data operation and returns a status code when the I/O is complete. The program can then continue and access the transferred data immediately. When used in their simplest form, the Windows ReadFile and WriteFile functions are executed synchronously. They complete the I/O operation before returning control to the caller.[4]
+
+Asynchronous I/O allows an application to issue multiple I/O requests and continue executing while the device performs the I/O operation. This type of I/O can improve an application’s throughput because it allows the application thread to continue with other work while an I/O operation is in progress.[4]
+
+Fast I/O is a special mechanism that allows the I/O system to bypass generating an IRP and instead go directly to the driver stack to complete an I/O request.[4]
+Mapped file I/O is an important feature of the I/O system, one that the I/O system and the memory manager produce jointly. Mapped file I/O refers to the ability to view a file residing on disk as part of a process’s virtual memory.[4]
+Windows also supports a special kind of high-performance I/O that is called scatter/gather, available via the Windows ReadFileScatter and WriteFileGather functions. These functions allow an application to issue a single read or write from more than one buffer in virtual memory to a contiguous area of a file on disk instead of issuing a separate I/O request for each buffer. [4]
+\section{Comparison with Linux}
+According to the information above, we can see that Windows has unique processing because it has its own I/O manager to sort and dispatch I/O requests. However, all of those three operation system are using a file system abstraction to the actual I/O. The  only part of different is that FreeBSD use a whole system to treat I/O, but Linux and Windows only uses a virtual filesystem to help separate file system code from the kernel.
+
+There are three kinds of devices: block, character and networking devices. FreeBSD and Linux has the similar way to take byte stream into file system. However, in Windows, it would use I/O manager to recognize and than present.
+
+On the drivers part, all of those three operation system have the same drivers. However, Windows needs to create device drivers to interacts with the I/O manager, FreeBSD and Linux separate the drivers into two part, top and bottom half.
+
+Finally, in the scheduling part, they have similar way that call queue to do it. Windows uses synchronous scheduler in most of condition, sometimes it uses other scheduler like asynchronous, fast I/O and mapped file I/O scheduler. In Linux, there are three kind of scheduler, Completely Fair Scheduler (CFQ), no-op scheduler and deadline, while the C-LOOK scheduler is used in FreeBSD.
+
+\section{Conclusion}
+In conclusion, the I/O in each operating systems has the similar ways. FreeBSD is more similar with Linux because both are part of the Unix family. However, all of those three systems support the modularity to connect and disconnect devices at runtime and how devices are grouped into categories. Scheduling is the only place that really different because they use different system and function to schedule. I/O is the slowest part of the computer, so everyone has almost the same approach on how to minimize the impact I/O has on general computing.
+\newpage
+
+\begin{thebibliography}{14}
+\bibitem{}
+Addison-Wesley Longman, \textit{Chapter 2. Design Overview of 4.4BSD},1996\\
+Available: \url{https://www.freebsd.org/doc/en/books/design-44bsd/overview-io-system.html}
+\bibitem{}
+Losh W., \textit{I/O Scheduling in FreeBSD’s CAM Subsystem},2015 \\
+Available: \url{https://people.freebsd.org/~imp/bsdcan2015/iosched-v3.pdf}
+\bibitem{}
+Mark E.R., Alex I., David A.S., \textit{Understanding the Windows I/O System},2012 \\
+Available: \url{https://www.microsoftpressstore.com/articles/article.aspx?p=2201309}
+\bibitem{}
+Mark E.R., Alex I., David A.S., \textit{Understanding the Windows I/O System},2012 \\
+Available: \url{https://www.microsoftpressstore.com/articles/article.aspx?p=2201309&seqNum=3}
+\bibitem{}
+\textit{IRP structure},Microsoft \\
+Available: \url{https://msdn.microsoft.com/en-us/library/windows/hardware/ff550694(v=vs.85).aspx}
+\bibitem{}
+\textit{Introduction to WDM},2017,Microsoft \\
+Available: \url{https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/introduction-to-wdm}
+\end{thebibliography}
+
+
+\end{document}
